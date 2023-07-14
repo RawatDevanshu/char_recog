@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:char_recog/camera_view.dart';
+import 'package:char_recog/text_painter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -19,6 +20,9 @@ class _CameraScreenState extends State<CameraScreen> {
   late CameraController _controller;
   late Future<void> camValue;
   final recognizer = TextRecognizer();
+  RecognizedText recogStream = RecognizedText(text: "", blocks: []);
+  double imgHeight = 0.0;
+  double imgWidth = 0.0;
 
   int ct = 0;
   bool flash = false;
@@ -30,13 +34,12 @@ class _CameraScreenState extends State<CameraScreen> {
       if (!mounted) {
         return;
       } else {
-        setState(() {
-          _controller.startImageStream((image) async {
-            ct++;
-            if (ct % 20 == 0) {
-              _scanStream(image, image.format.group.name);
-            }
-          });
+        _controller.startImageStream((image) async {
+          ct++;
+          if (ct % 20 == 0) {
+            _scanStream(image, image.format.group.name);
+            print(ct);
+          }
         });
       }
     });
@@ -45,11 +48,15 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _scanImage() async {
     final pictureFile = await _controller.takePicture();
     final file = File(pictureFile.path);
+    final imgSize = await decodeImageFromList(file.readAsBytesSync());
     final inputImage = InputImage.fromFile(file);
     final recognised = await recognizer.processImage(inputImage);
     await Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (context) => CameraViewPage(
               recognised: recognised,
+              img: pictureFile.path,
+              imgHeight: imgSize.height,
+              imgWidth: imgSize.width,
             )));
   }
 
@@ -57,11 +64,15 @@ class _CameraScreenState extends State<CameraScreen> {
     final image = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (image == null) return;
     final file = File(image.path);
+    final imgSize = await decodeImageFromList(file.readAsBytesSync());
     final inputImage = InputImage.fromFile(file);
     final recognised = await recognizer.processImage(inputImage);
     await Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (context) => CameraViewPage(
               recognised: recognised,
+              img: image.path,
+              imgHeight: imgSize.height,
+              imgWidth: imgSize.width,
             )));
   }
 
@@ -71,8 +82,10 @@ class _CameraScreenState extends State<CameraScreen> {
       allBytes.putUint8List(plane.bytes);
     }
     final bytes = allBytes.done().buffer.asUint8List();
+    imgHeight = image.height.toDouble();
+    imgWidth = image.width.toDouble();
 
-    final Size sz = Size(image.width.toDouble(), image.height.toDouble());
+    final Size sz = Size(imgWidth, imgHeight);
 
     final InputImageFormat? inputImageFormat =
         imgformat == "yuv420" ? InputImageFormat.yuv420 : null;
@@ -85,10 +98,11 @@ class _CameraScreenState extends State<CameraScreen> {
         bytes: bytes,
         metadata: InputImageMetadata(
             size: sz,
-            rotation: InputImageRotation.rotation180deg,
+            rotation: InputImageRotation.rotation90deg,
             format: inputImageFormat,
             bytesPerRow: image.planes[0].bytesPerRow));
-    final recogStream = await recognizer.processImage(ipImage);
+    recogStream = await recognizer.processImage(ipImage);
+    setState(() {});
     print("Recog------------------------\n");
     print(recogStream.text);
     print("------------------------\n");
@@ -116,7 +130,15 @@ class _CameraScreenState extends State<CameraScreen> {
             future: camValue,
             builder: (builder, snapshot) {
               if (snapshot.connectionState == ConnectionState.done) {
-                return CameraPreview(_controller);
+                return CameraPreview(
+                  _controller,
+                  child: CustomPaint(
+                      painter: TextBoxPainter(
+                          recogText: recogStream,
+                          imgHeight: imgHeight.toInt(),
+                          imgWidth: imgWidth.toInt(),
+                          rotation: 90)),
+                );
               } else {
                 return Container(
                   color: Colors.black,

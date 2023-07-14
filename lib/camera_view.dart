@@ -1,10 +1,21 @@
+import 'dart:io';
+
 import 'package:char_recog/camera_screen.dart';
+import 'package:char_recog/text_painter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class CameraViewPage extends StatelessWidget {
-  const CameraViewPage({super.key, required this.recognised});
+  const CameraViewPage(
+      {super.key,
+      required this.recognised,
+      required this.img,
+      required this.imgHeight,
+      required this.imgWidth});
   final RecognizedText recognised;
+  final String img;
+  final int imgHeight;
+  final int imgWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -30,16 +41,26 @@ class CameraViewPage extends StatelessWidget {
           ),
         ),
         body: Stack(children: [
-          
-          Container(
+          SizedBox(
             height: MediaQuery.of(context).size.height,
             width: MediaQuery.of(context).size.width,
-            child: Center(child: Text(recognised.text)),
+            child: CustomPaint(
+                child: Container(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height - 150,
+                  child: Image.file(
+                    File(img),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                foregroundPainter: TextBoxPainter(
+                    recogText: recognised,
+                    imgHeight: imgHeight,
+                    imgWidth: imgWidth,
+                    rotation: 0)),
           ),
         ]),
       ),
     );
   }
 }
-
-
